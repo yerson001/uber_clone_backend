@@ -7,10 +7,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from 'src/users/user.entity';
 import { ClientRequests } from './client_requests.entity';
 import { FirebaseModule } from 'src/firebase/firebase.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   providers: [ClientRequestsService],
   controllers: [ClientRequestsController],
-  imports: [TimeAndDistanceValuesModule, TypeOrmModule.forFeature([ClientRequests, User]), FirebaseModule]
+  imports: [ConfigModule,TimeAndDistanceValuesModule, TypeOrmModule.forFeature([ClientRequests, User]), FirebaseModule]
 })
 export class ClientRequestsModule {}

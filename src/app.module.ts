@@ -30,7 +30,7 @@ TypeOrmModule.forRoot({
 }),
 
 
-    ConfigModule.forRoot({ cache: true }),
+    ConfigModule.forRoot({ cache: true , isGlobal: true,}),
     UsersModule,
     AuthModule,
     RolesModule,

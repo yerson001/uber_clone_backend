@@ -10,20 +10,22 @@ import { UpdateStatusClientRequestDto } from './dto/update_status_client_request
 import { UpdateDriverRatingDto } from './dto/update_driver_rating.dto';
 import { UpdateClientRatingDto } from './dto/update_client_rating.dto';
 import { FirebaseRepository } from 'src/firebase/firebase.repository';
-const API_KEY = 'AIzaSyCz2_cuCf3LfiR-gjQBD-GXdIiCYOtpLMo';
-
+import { ConfigService } from '@nestjs/config';
 
 
 
 @Injectable()
 export class ClientRequestsService  extends Client {
+private readonly apiKey: string;
 
     constructor(
         @InjectRepository(ClientRequests) private clientRequestsRepository: Repository<ClientRequests>,
         private timeAndDistanceValuesService: TimeAndDistanceValuesService,  
-        private firebaseRepository: FirebaseRepository
+        private firebaseRepository: FirebaseRepository,
+         private configService: ConfigService,
     ) {
         super();
+        this.apiKey = this.configService.get<string>('GOOGLE_API_KEY');
     }
   
     async create(clientRequest: CreateClientRequestDto) {
@@ -387,7 +389,8 @@ export class ClientRequestsService  extends Client {
             const googleResponse = await this.distancematrix({
                 params: {
                     mode: TravelMode.driving,
-                    key: API_KEY,
+
+                    key: this.apiKey,
                     origins: [
                         {
                             lat: driver_lat,
@@ -419,7 +422,7 @@ export class ClientRequestsService  extends Client {
         const googleResponse = await this.distancematrix({
             params: {
                 mode: TravelMode.driving,
-                key: API_KEY,
+                key: this.apiKey,
                 origins: [
                     {
                         lat: origin_lat,
