@@ -12,20 +12,20 @@ export class FirebaseRepository {
 
   sendMessage(notification: Message) {
     console.log('NOTIFICACION SIMULADA (sendMessage):', notification);
-    /*this.messaging.send(notification).then((response) => {
+    this.messaging.send(notification).then((response) => {
         console.log('NOTIFICACION ENVIADA');
     }).catch(e => {
         console.log('ERROR ENVIANDO NOTIFICACION: ', e);
-    })*/
+    })
   }
 
   sendMessageToMultipleDevices(notification: MulticastMessage) {
      console.log('NOTIFICACION SIMULADA (sendMessageToMultipleDevices):', notification);
-    /*this.messaging.sendEachForMulticast(notification).then((response) => {
+    this.messaging.sendEachForMulticast(notification).then((response) => {
         console.log('NOTIFICACION ENVIADA');
     }).catch(e => {
         console.log('ERROR ENVIANDO NOTIFICACION: ', e);
-    })*/
+    })
   }
 
   

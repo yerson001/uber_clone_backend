@@ -15,19 +15,19 @@ import { ConfigService } from '@nestjs/config';
 
 
 @Injectable()
-export class ClientRequestsService  extends Client {
-private readonly apiKey: string;
+export class ClientRequestsService extends Client {
+    private readonly apiKey: string;
 
     constructor(
         @InjectRepository(ClientRequests) private clientRequestsRepository: Repository<ClientRequests>,
-        private timeAndDistanceValuesService: TimeAndDistanceValuesService,  
+        private timeAndDistanceValuesService: TimeAndDistanceValuesService,
         private firebaseRepository: FirebaseRepository,
-         private configService: ConfigService,
+        private configService: ConfigService,
     ) {
         super();
         this.apiKey = this.configService.get<string>('GOOGLE_API_KEY');
     }
-  
+
     async create(clientRequest: CreateClientRequestDto) {
         try {
             await this.clientRequestsRepository.query(`
@@ -67,38 +67,36 @@ private readonly apiKey: string;
                 distance < 10000
             `);
             const notificationTokens = [];
-            
-            nearbyDrivers.forEach((driver, index) => {
-                if (!notificationTokens.includes(driver.notification_token)) {
-                    if (driver.notification_token !== '') {
-                        notificationTokens.push(driver.notification_token);
+
+            nearbyDrivers.forEach((driver) => {
+                if (driver.notification_token && driver.notification_token.trim() !== "") {
+                    const cleanToken = driver.notification_token.trim();
+                    if (!notificationTokens.includes(cleanToken)) {
+                        notificationTokens.push(cleanToken);
                     }
-                    
                 }
             });
-            console.log('NOTIFICATION TOKEN:', notificationTokens);
+
+            console.log("TOKENS LIMPIOS:", notificationTokens);
 
             this.firebaseRepository.sendMessageToMultipleDevices({
-                "tokens": notificationTokens,
-                "notification":{
-                  "title":"Solicitud de viaje",
-                  "body": clientRequest.pickup_description
+                tokens: notificationTokens,
+                notification: {
+                    title: "Solicitud de Incidente",
+                    body: clientRequest.pickup_description
                 },
-                "data" : {
-                  "id_client_requets" : `${data[0].id}`,
-                  "type" : 'CLIENT_REQUEST',
+                data: {
+                    id_client_request: `${data[0].id}`,
+                    type: 'CLIENT_REQUEST'
                 },
-                "android":{
-                  "priority":"high",
-                  "ttl": 180
-                },
-                "apns":{
-                  "headers":{
-                    "apns-priority":"5",
-                    "apns-expiration":"180"
-                  }
+                android: {
+                    priority: "high",
+                    notification: {
+                        channelId: "default_channel"
+                    }
                 }
             });
+
             return Number(data[0].id);
         } catch (error) {
             console.log('Error creando la solicitud del cliente', error);
@@ -119,7 +117,7 @@ private readonly apiKey: string;
                 WHERE
                     id = ${driverAssigned.id}
             `);
-            
+
             return true;
         } catch (error) {
             console.log('Error creando la solicitud del cliente', error);
@@ -138,7 +136,7 @@ private readonly apiKey: string;
                 WHERE
                     id = ${updateStatusDto.id_client_request}
             `);
-            
+
             return true;
         } catch (error) {
             console.log('Error creando la solicitud del cliente', error);
@@ -157,7 +155,7 @@ private readonly apiKey: string;
                 WHERE
                     id = ${driverRating.id_client_request}
             `);
-            
+
             return true;
         } catch (error) {
             console.log('Error creando la solicitud del cliente', error);
@@ -176,7 +174,7 @@ private readonly apiKey: string;
                 WHERE
                     id = ${driverRating.id_client_request}
             `);
-            
+
             return true;
         } catch (error) {
             console.log('Error creando la solicitud del cliente', error);
@@ -380,12 +378,12 @@ private readonly apiKey: string;
         HAVING
             distance < 10000
         `);
-        if(data.length > 0) {
-            const pickup_positions = data.map(d => ({ 
-                lat: d.pickup_position.y, 
-                lng: d.pickup_position.x 
+        if (data.length > 0) {
+            const pickup_positions = data.map(d => ({
+                lat: d.pickup_position.y,
+                lng: d.pickup_position.x
             }));
-    
+
             const googleResponse = await this.distancematrix({
                 params: {
                     mode: TravelMode.driving,
@@ -400,10 +398,10 @@ private readonly apiKey: string;
                     destinations: pickup_positions
                 }
             });
-    
+
             data.forEach((d, index) => {
                 d.google_distance_matrix = googleResponse.data.rows[0].elements[index];
-            });      
+            });
         }
         return data;
     }
@@ -437,7 +435,7 @@ private readonly apiKey: string;
                 ]
             }
         });
-        
+
         const recommendedValue = (kmValue * (googleResponse.data.rows[0].elements[0].distance.value / 1000)) + (minValue * (googleResponse.data.rows[0].elements[0].duration.value / 60))
 
         return {
