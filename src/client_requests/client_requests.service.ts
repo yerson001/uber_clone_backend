@@ -28,58 +28,66 @@ export class ClientRequestsService extends Client {
         this.apiKey = this.configService.get<string>('GOOGLE_API_KEY');
     }
 
-    async create(clientRequest: CreateClientRequestDto) {
-        try {
-            await this.clientRequestsRepository.query(`
-                INSERT INTO
-                    client_requests(
-                        id_client,
-                        fare_offered,
-                        pickup_description,
-                        destination_description,
-                        pickup_position,
-                        destination_position
-                    )
-                VALUES(
-                    ${clientRequest.id_client},
-                    '${clientRequest.fare_offered}',
-                    '${clientRequest.pickup_description}',
-                    '${clientRequest.destination_description}',
-                    ST_GeomFromText('POINT(${clientRequest.pickup_lat} ${clientRequest.pickup_lng})', 4326),
-                    ST_GeomFromText('POINT(${clientRequest.destination_lat} ${clientRequest.destination_lng})', 4326)
+async create(clientRequest: CreateClientRequestDto) {
+    try {
+        console.log("=== INICIO DEBUG NOTIFICACIONES ===");
+
+        // Insertar la solicitud del cliente
+        await this.clientRequestsRepository.query(`
+            INSERT INTO
+                client_requests(
+                    id_client,
+                    fare_offered,
+                    pickup_description,
+                    destination_description,
+                    pickup_position,
+                    destination_position
                 )
-            `);
-            const data = await this.clientRequestsRepository.query(`SELECT MAX(id) AS id FROM client_requests`);
-            const nearbyDrivers = await this.clientRequestsRepository.query(`
+            VALUES(
+                ${clientRequest.id_client},
+                '${clientRequest.fare_offered}',
+                '${clientRequest.pickup_description}',
+                '${clientRequest.destination_description}',
+                ST_GeomFromText('POINT(${clientRequest.pickup_lat} ${clientRequest.pickup_lng})', 4326),
+                ST_GeomFromText('POINT(${clientRequest.destination_lat} ${clientRequest.destination_lng})', 4326)
+            )
+        `);
+
+        const data = await this.clientRequestsRepository.query(`SELECT MAX(id) AS id FROM client_requests`);
+        console.log("✅ ID de solicitud creada:", data[0].id);
+
+        // Query para obtener TODOS los usuarios con token
+        const allUsersWithTokens = await this.clientRequestsRepository.query(`
             SELECT
                 U.id,
                 U.name,
-                U.notification_token,
-                DP.position,
-                ST_Distance_Sphere(DP.position, ST_GeomFromText('POINT(${clientRequest.pickup_lat} ${clientRequest.pickup_lng})', 4326)) AS distance
+                U.notification_token
             FROM
                 users AS U
-            LEFT JOIN
-                drivers_position AS DP
-            ON
-                U.id = DP.id_driver    
-            HAVING
-                distance < 10000
-            `);
-            const notificationTokens = [];
+            WHERE
+                U.notification_token IS NOT NULL 
+                AND U.notification_token != ''
+                AND TRIM(U.notification_token) != ''
+        `);
 
-            nearbyDrivers.forEach((driver) => {
-                if (driver.notification_token && driver.notification_token.trim() !== "") {
-                    const cleanToken = driver.notification_token.trim();
-                    if (!notificationTokens.includes(cleanToken)) {
-                        notificationTokens.push(cleanToken);
-                    }
+        console.log("📱 Usuarios con token encontrados:", allUsersWithTokens.length);
+
+        // Procesar tokens
+        const notificationTokens = [];
+        allUsersWithTokens.forEach((user) => {
+            if (user.notification_token && user.notification_token.trim() !== "") {
+                const cleanToken = user.notification_token.trim();
+                if (!notificationTokens.includes(cleanToken)) {
+                    notificationTokens.push(cleanToken);
                 }
-            });
+            }
+        });
 
-            console.log("TOKENS LIMPIOS:", notificationTokens);
+        console.log("🎯 TOKENS FINALES:", notificationTokens);
+        console.log("📊 Cantidad de tokens:", notificationTokens.length);
 
-            this.firebaseRepository.sendMessageToMultipleDevices({
+        if (notificationTokens.length > 0) {
+            const notificationPayload = {
                 tokens: notificationTokens,
                 notification: {
                     title: "Solicitud de Incidente",
@@ -95,14 +103,45 @@ export class ClientRequestsService extends Client {
                         channelId: "default_channel"
                     }
                 }
-            });
+            };
 
-            return Number(data[0].id);
-        } catch (error) {
-            console.log('Error creando la solicitud del cliente', error);
-            throw new HttpException('Error del servidor', HttpStatus.INTERNAL_SERVER_ERROR);
+            console.log("🚀 ENVIANDO NOTIFICACIONES...");
+
+            try {
+                // Enviar con el método principal
+                const result = await this.firebaseRepository.sendMessageToMultipleDevices(notificationPayload);
+                console.log("📈 RESULTADO FINAL:", result);
+
+                // Si falló, probar individualmente
+                if (result.failureCount > 0) {
+                    console.log("🔄 Probando envío individual por fallos...");
+                    const individualResults = await this.firebaseRepository.sendToEachDeviceIndividually(notificationPayload);
+                    console.log("🔍 RESULTADOS INDIVIDUALES:", individualResults);
+                }
+
+            } catch (sendError) {
+                console.log("💥 ERROR AL ENVIAR:", sendError);
+                
+                // Como fallback, probar envío individual
+                console.log("🆘 FALLBACK: Probando envío individual...");
+                try {
+                    const individualResults = await this.firebaseRepository.sendToEachDeviceIndividually(notificationPayload);
+                    console.log("🔧 RESULTADOS FALLBACK:", individualResults);
+                } catch (fallbackError) {
+                    console.log("💀 FALLÓ TODO:", fallbackError);
+                }
+            }
+        } else {
+            console.log("⚠️ NO HAY TOKENS VÁLIDOS");
         }
+
+        console.log("=== FIN DEBUG NOTIFICACIONES ===");
+        return Number(data[0].id);
+    } catch (error) {
+        console.log('❌ ERROR EN CREATE:', error);
+        throw new HttpException('Error del servidor', HttpStatus.INTERNAL_SERVER_ERROR);
     }
+}
 
     async updateDriverAssigned(driverAssigned: UpdateDriverAssignedClientRequestDto) {
         try {
